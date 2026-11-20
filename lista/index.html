@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lista de Compras</title>
+<style>
+  :root { --verde:#1b8a3a; --fundo:#fcf8ff; --texto:#1c1b1f; }
+  @media (prefers-color-scheme: dark) { :root { --fundo:#141218; --texto:#e6e1e5; --verde:#6fd98a; } }
+  body { font:16px/1.5 system-ui,sans-serif; background:var(--fundo); color:var(--texto); margin:0; padding:24px 16px; }
+  main { max-width:520px; margin:0 auto; }
+  h1 { color:var(--verde); font-size:1.4rem; }
+  li { margin:.3rem 0; } li small { display:block; opacity:.7; word-break:break-all; }
+  button { background:var(--verde); color:#fff; border:0; border-radius:20px; padding:10px 20px; font-size:1rem; margin-top:12px; }
+  .aviso { opacity:.75; font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="titulo">🛒 Lista de Compras</h1>
+  <ul id="itens"></ul>
+  <button id="copiar" hidden>Copiar como texto</button>
+  <p class="aviso" id="aviso">Abra este link no celular com o app Lista de Compras instalado para importar.</p>
+</main>
+<script>
+// Os dados vão no fragmento (#...): nunca chegam ao servidor. Tudo é inserido com textContent (sem HTML).
+(async () => {
+  const payload = location.hash.slice(1);
+  if (!payload) return;
+  const unesc = s => s.replace(/\\(.)/g, (_, c) => ({ t: "\t", n: "\n", r: "\r" }[c] ?? c));
+  try {
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate"));
+    const texto = await new Response(stream).text();
+    const [cab, ...linhas] = texto.split("\n");
+    const [, nome, soItem] = cab.split("\t");
+    document.getElementById("titulo").textContent = soItem === "1" ? "🛒 Item compartilhado" : "🛒 " + unesc(nome);
+    const ul = document.getElementById("itens");
+    const resumo = [];
+    for (const l of linhas) {
+      const [, qtd, preco, n, link] = l.split("\t");
+      const li = document.createElement("li");
+      const reais = preco ? " (R$ " + (Number(preco) / 100).toFixed(2).replace(".", ",") + ")" : "";
+      const linha = (Number(qtd) > 1 ? qtd + "x " : "") + unesc(n) + reais;
+      li.textContent = linha;
+      resumo.push("• " + linha);
+      if (link) { const s = document.createElement("small"); s.textContent = unesc(link); li.appendChild(s); }
+      ul.appendChild(li);
+    }
+    const botao = document.getElementById("copiar");
+    botao.hidden = false;
+    botao.onclick = async () => {
+      await navigator.clipboard.writeText("🛒 " + unesc(nome) + "\n" + resumo.join("\n"));
+      botao.textContent = "Copiado!";
+    };
+  } catch (e) {
+    document.getElementById("aviso").textContent = "Link inválido ou incompleto.";
+  }
+})();
+</script>
+</body>
+</html>
